@@ -250,18 +250,18 @@ xargs -n 1 $DOCKER inspect -f '{{.Image}}' < containers.keep 2>/dev/null |
 sort | uniq > images.used
 
 # List images to reap; images that existed last run and are not in use.
+# Fixed: Rewrote to avoid subshell issues with pipes that caused images.all to remain empty
 echo -n "" > images.all
-$DOCKER images | while read line
+$DOCKER images --format "{{.Repository}}" | sort | uniq > repositories.tmp
+while IFS='' read -r repo
 do
-  awk '{print $1};'
-done | sort | uniq | while read line
-do
-  $DOCKER images --no-trunc --format "{{.ID}} {{.CreatedAt}}" $line \
+  $DOCKER images --no-trunc --format "{{.ID}} {{.CreatedAt}}" "$repo" \
     | sort -k 2 -r \
     | tail -n +$((MINIMUM_IMAGES_TO_SAVE+1)) \
     | cut -f 1 -d " " \
     | uniq >> images.all
-done
+done < repositories.tmp
+rm -f repositories.tmp
 
 # Add dangling images to list.
 $DOCKER images --no-trunc --format "{{.ID}}" --filter dangling=true >> images.all
